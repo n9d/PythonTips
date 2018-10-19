@@ -1,0 +1,68 @@
+
+
+* ヘッダ付きでgetを行う
+
+
+- elasticsearchへライブラリレスでアクセス
+- 他の簡易ライブラリだとgetかどうかさえわからない
+
+
+#+BEGIN_SRC python :exports both
+import http .client
+conn = http.client.HTTPSConnection("vpc-....es.amazonaws.com")
+conn.request("GET", "/zz/_mapping",headers={"Content-Type":"application/json"})
+r1 = conn.getresponse()
+print(r1.status, r1.reason)
+print(r1.read().decode())
+conn.close()
+#+END_SRC
+
+#+RESULTS:
+: 200 OK
+: {"zz":{"mappings":{"_doc":{"properties":{"code":{"type":"integer"},"datetime":{"type":"date"},"hummd":{"type":"half_float"},"prssr":{"type":"half_float"},"tempr":{"type":"half_float"},"wddir":{"type":"byte"},"wdspd":{"type":"half_float"},"wethr":{"type":"short"}}}}}}
+
+
+* ヘッダ付きでpost
+
+#+BEGIN_SRC python :exports both
+import http .client,json
+h = { "query": { "term":{"pref_code":"01"}},"size":1}
+son=json.dumps(h)
+conn = http.client.HTTPSConnection("vpc....es.amazonaws.com")
+conn.request("POST", "/city/_search",son,headers={"Content-Type":"application/json"})
+r1 = conn.getresponse()
+print(r1.status, r1.reason)
+print(r1.read().decode())
+conn.close()
+#+END_SRC
+
+#+RESULTS:
+: {"query": {"term": {"pref_code": "01"}}, "size": 1}
+: 200 OK
+
+
+* esにバルクで投げる
+
+#+BEGIN_SRC python :exports code :var data=pdata :colnames no :results output
+import csv,json,http.client
+#print(data[1:-1])
+label=data[0]
+ret=[]
+for row in data[1:-1]:
+  r={}
+  for k,v in zip(label,row):
+    if k=="datetime":
+      r[k]=str(v).replace("/","-").replace(" ","T") #時間のフォーマットをesに通る形に
+    else:
+      r[k]=v
+  rr=json.dumps({"index":{"_id":(r["datetime"]+"_"+str(r["Code"]))}})+"\n"+json.dumps(r)
+  ret.append(rr)
+son="\n".join(ret)+"\n"
+print(son)
+conn = http.client.HTTPSConnection("vpc-...es.amazonaws.com")
+conn.request("POST", "/zz/doc/_bulk",son,headers={"Content-Type":"application/json"})
+r1 = conn.getresponse()
+print(r1.status, r1.reason)
+print(r1.read().decode())
+conn.close()
+#+END_SRC
